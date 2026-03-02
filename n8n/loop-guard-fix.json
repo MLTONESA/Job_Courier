@@ -1,0 +1,146 @@
+{
+  "name": "JobCourier – Loop Guard Fix",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-manual",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "init-loop-count",
+              "name": "loop_count",
+              "value": 0,
+              "type": "number"
+            },
+            {
+              "id": "init-max",
+              "name": "loop_max",
+              "value": 15,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-init",
+      "name": "Init Loop Counter",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "increment-loop-count",
+              "name": "loop_count",
+              "value": "={{ $json.loop_count + 1 }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-increment",
+      "name": "Loop Guard – Increment",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [660, 0],
+      "notes": "Incrementa il contatore ad ogni iterazione del loop. Mantiene il valore nei dati JSON, visibile nel debugger."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-loop-limit",
+              "leftValue": "={{ $json.loop_count }}",
+              "rightValue": "={{ $json.loop_max }}",
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-guard",
+      "name": "Loop Guard – Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [880, 0],
+      "notes": "true → continua il loop | false → ferma, limite raggiunto"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ─────────────────────────────────────────────────────────────\n// LOOP GUARD — versione Code node (alternativa al Set+IF)\n// Usa questo se hai bisogno di logica aggiuntiva nel guard.\n// ─────────────────────────────────────────────────────────────\nconst MAX_ITERATIONS = 15;\nconst staticData = $getWorkflowStaticData('global');\n\n// Inizializza o incrementa il contatore\nif (!staticData.loopCount) staticData.loopCount = 0;\nstaticData.loopCount += 1;\n\nconst shouldStop = staticData.loopCount >= MAX_ITERATIONS;\n\n// Resetta il contatore quando si ferma (per la prossima esecuzione)\nif (shouldStop) staticData.loopCount = 0;\n\n// ✅ Ritorna SEMPRE un array — mai undefined, mai throw senza return\nreturn items.map(item => ({\n  json: {\n    ...item.json,\n    _loop_count: staticData.loopCount,\n    _should_continue: !shouldStop\n  }\n}));\n"
+      },
+      "id": "code-loop-guard",
+      "name": "Loop Guard – Code (alternativa)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 220],
+      "notes": "Alternativa con Code node. Usa il nodo Set+IF sopra se non hai bisogno di logica custom."
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Init Loop Counter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Init Loop Counter": {
+      "main": [
+        [
+          {
+            "node": "Loop Guard – Increment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Guard – Increment": {
+      "main": [
+        [
+          {
+            "node": "Loop Guard – Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "loop-guard-fix",
+  "tags": []
+}
